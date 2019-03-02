@@ -19,7 +19,6 @@ package io.plaidapp.ui;
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
-import android.app.Activity;
 import android.app.ActivityManager;
 import android.app.ActivityOptions;
 import android.content.BroadcastReceiver;
@@ -28,11 +27,6 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.graphics.Bitmap;
 import android.graphics.drawable.AnimatedVectorDrawable;
-import android.net.ConnectivityManager;
-import android.net.Network;
-import android.net.NetworkCapabilities;
-import android.net.NetworkInfo;
-import android.net.NetworkRequest;
 import android.os.Bundle;
 import android.text.Annotation;
 import android.text.Spannable;
@@ -77,6 +71,7 @@ import io.plaidapp.core.designernews.data.login.LoginRepository;
 import io.plaidapp.core.designernews.data.poststory.PostStoryService;
 import io.plaidapp.core.designernews.data.stories.model.Story;
 import io.plaidapp.core.dribbble.data.api.model.Shot;
+import io.plaidapp.core.ui.ConnectivityChecker;
 import io.plaidapp.core.ui.FeedAdapter;
 import io.plaidapp.core.ui.HomeGridItemAnimator;
 import io.plaidapp.core.ui.PlaidItemsList;
@@ -118,10 +113,10 @@ public class HomeActivity extends FragmentActivity {
     ImageButton fabPosting;
     GridLayoutManager layoutManager;
     private int columns;
-    boolean connected = true;
     private TextView noFiltersEmptyText;
-    private boolean monitoringConnectivity = false;
     private FilterAdapter filtersAdapter;
+
+    private boolean connected;
 
     // data
     @Inject
@@ -138,10 +133,22 @@ public class HomeActivity extends FragmentActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_home);
         bindResources();
+
         inject(this, data -> {
             List<PlaidItem> items = PlaidItemsList.getPlaidItemsForDisplay(adapter.getItems(), data);
             adapter.setItems(items);
             checkEmptyState();
+        });
+
+        ConnectivityChecker connectivityChecker = new ConnectivityChecker(this.getApplicationContext());
+        getLifecycle().addObserver(connectivityChecker);
+        connectivityChecker.getConnectedStatus().observe(this, connected -> {
+            this.connected = connected;
+            if(connected) {
+                handleNetworkConnected();
+            } else {
+                handleNoNetworkConnection();
+            }
         });
 
         filtersAdapter = new FilterAdapter(sourcesRepository);
@@ -261,23 +268,6 @@ public class HomeActivity extends FragmentActivity {
         noConnection = findViewById(R.id.no_connection);
 
         columns = getResources().getInteger(R.integer.num_columns);
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        checkConnectivity();
-    }
-
-    @Override
-    protected void onPause() {
-        if (monitoringConnectivity) {
-            final ConnectivityManager connectivityManager
-                    = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-            connectivityManager.unregisterNetworkCallback(connectivityCallback);
-            monitoringConnectivity = false;
-        }
-        super.onPause();
     }
 
     @Override
@@ -749,49 +739,29 @@ public class HomeActivity extends FragmentActivity {
         drawer.postDelayed(closeDrawerRunnable, 2000L);
     }
 
-    private void checkConnectivity() {
-        final ConnectivityManager connectivityManager
-                = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-        final NetworkInfo activeNetworkInfo = connectivityManager.getActiveNetworkInfo();
-        connected = activeNetworkInfo != null && activeNetworkInfo.isConnected();
-        if (!connected) {
-            loading.setVisibility(View.GONE);
-            if (noConnection == null) {
-                final ViewStub stub = findViewById(R.id.stub_no_connection);
-                noConnection = (ImageView) stub.inflate();
-            }
-            final AnimatedVectorDrawable avd =
-                    (AnimatedVectorDrawable) getDrawable(R.drawable.avd_no_connection);
-            if (noConnection != null && avd != null) {
-                noConnection.setImageDrawable(avd);
-                avd.start();
-            }
-
-            connectivityManager.registerNetworkCallback(
-                    new NetworkRequest.Builder()
-                    .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET).build(),
-                    connectivityCallback);
-            monitoringConnectivity = true;
+    private void handleNoNetworkConnection() {
+        loading.setVisibility(View.GONE);
+        if (noConnection == null) {
+            final ViewStub stub = findViewById(R.id.stub_no_connection);
+            noConnection = (ImageView) stub.inflate();
+        }
+        final AnimatedVectorDrawable avd =
+                (AnimatedVectorDrawable) getDrawable(R.drawable.avd_no_connection);
+        if (noConnection != null && avd != null) {
+            noConnection.setImageDrawable(avd);
+            avd.start();
         }
     }
 
-    private ConnectivityManager.NetworkCallback connectivityCallback
-            = new ConnectivityManager.NetworkCallback() {
-        @Override
-        public void onAvailable(Network network) {
-            connected = true;
-            if (adapter.getDataItemCount() != 0) return;
-            runOnUiThread(() -> {
-                TransitionManager.beginDelayedTransition(drawer);
-                noConnection.setVisibility(View.GONE);
-                loading.setVisibility(View.VISIBLE);
-                dataManager.loadAllDataSources();
-            });
-        }
+    private void handleNetworkConnected() {
+        if (adapter.getDataItemCount() != 0) return;
 
-        @Override
-        public void onLost(Network network) {
-            connected = false;
+        TransitionManager.beginDelayedTransition(drawer);
+        if(noConnection != null) {
+            noConnection.setVisibility(View.GONE);
         }
-    };
+        loading.setVisibility(View.VISIBLE);
+        dataManager.loadAllDataSources();
+    }
+
 }
