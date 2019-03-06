@@ -150,7 +150,7 @@
                     android:textColorLink="@color/dribbble_links"
                     tools:text="Check out this sweet eye candy!" />
 
-                <Button
+                <io.plaidapp.core.ui.widget.BaselineGridTextView
                     android:id="@+id/shot_like_count"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
@@ -164,7 +164,7 @@
                     tools:text="33 likes"
                     style="@style/Widget.Plaid.InlineActionButton" />
 
-                <Button
+                <io.plaidapp.core.ui.widget.BaselineGridTextView
                     android:id="@+id/shot_view_count"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
@@ -177,7 +177,7 @@
                     tools:text="33 views"
                     style="@style/Widget.Plaid.InlineActionButton" />
 
-                <Button
+                <io.plaidapp.core.ui.widget.BaselineGridTextView
                     android:id="@+id/shot_share_action"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
